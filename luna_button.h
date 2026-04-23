@@ -38,15 +38,15 @@ static inline LUNA_TICK_TYPE luna_get_tick(void)
 #endif
 
 #ifndef BUTTON_LONG_PRESSED_INTERVAL
-#define BUTTON_LONG_PRESSED_INTERVAL            (2000)
+#define BUTTON_LONG_PRESSED_INTERVAL            (600)
 #endif
 
 #ifndef BUTTON_LONG_PRESSED_REPEAT_INTERVAL
-#define BUTTON_LONG_PRESSED_REPEAT_INTERVAL     (300)
+#define BUTTON_LONG_PRESSED_REPEAT_INTERVAL     (100)
 #endif
 
 #ifndef BUTTON_CLICK_INTERVAL
-#define BUTTON_CLICK_INTERVAL		        (200)
+#define BUTTON_CLICK_INTERVAL		        (250)
 #endif
 
 typedef enum {
