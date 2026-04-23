@@ -15,28 +15,32 @@ static struct button button;
 
 static struct core_timer *timer_head = NULL;
 
-void button_pressed(struct button *button)
+void button_press(void *arg)
 {
+	(void)arg;
 	printf("[%08u] BUTTON [PRESSED]\n", LUNA_GET_TICK());
 }
 
-void button_release(struct button *button)
+void button_release(void *arg)
 {
+	(void)arg;
 	printf("[%08u] BUTTON [RELEASED]\n", LUNA_GET_TICK());
 }
 
-void button_click(struct button *button)
+void button_mult_click(void *arg, uint32_t click)
 {
-	printf("[%08u] BUTTON [CLICK]    count: %u\n", LUNA_GET_TICK(), button->repeat);
+	(void)arg;
+	printf("[%08u] BUTTON [CLICK][%08u]\n", LUNA_GET_TICK(), click);
 }
 
-void button_long_pressed(struct button *button)
+void button_long_press(void *arg)
 {
-	printf("[%08u] BUTTON [LONG_PRESSED]  timeout: %dms\n", LUNA_GET_TICK(), BUTTON_LONG_TICK);
+	(void)arg;
+	printf("[%08u] BUTTON [LONG_PRESSED]\n", LUNA_GET_TICK());
 }
 
 
-bool button_is_pressed(void)
+bool button_is_press(void)
 {
 	return (GetAsyncKeyState('A') & 0x8000) != 0;
 }
@@ -58,14 +62,21 @@ int main(void)
 			timer_call_callback,
 			&button);
 
-	struct button_config_ops callback = {
-		.click        = button_click,
-		.pressed      = button_pressed,
+	const struct button_callback callback = {
+		.mult_click   = button_mult_click,
+		.press      = button_press,
 		.release      = button_release,
-		.long_pressed = button_long_pressed
+		.long_press = button_long_press
 	};
-	luna_button_init(&button, button_is_pressed);
-	luna_button_bind(&button, &callback);
+	luna_button_init(&button, button_is_press);
+	luna_button_bind(&button, &callback, 0);
+
+	luna_button_enable_long_press(&button, true);
+
+	luna_button_set_debounce_interval         (&button, BUTTON_DEBOUNCE_INTERVAL);
+	luna_button_set_long_press_interval       (&button, BUTTON_LONG_PRESSED_INTERVAL);
+	luna_button_set_long_press_repeat_interval(&button, BUTTON_LONG_PRESSED_REPEAT_INTERVAL);
+	luna_button_set_click_interval            (&button, BUTTON_CLICK_INTERVAL);
 
         luna_timer_start(&timer);
         while (1)
