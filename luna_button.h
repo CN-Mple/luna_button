@@ -140,20 +140,23 @@ void luna_button_poll(struct button *button)
                         }
 		break;
                 case PRESSED:
-                        if (!pressed) {
-                                button->state = PRE_RELEASE;
-                                button->tick = now;
-                        } else {
+                        if (pressed) {
                                 if (LUNA_LESS_THAN(LUNA_TICK_TYPE, BUTTON_LONG_TICK, now - button->tick)) {
 					button->tick  = now;
                                         if (button->callback.long_pressed) {
                                                 button->callback.long_pressed(button);
                                         }
                                 }
+                        } else {
+                                button->state = PRE_RELEASE;
+                                button->tick = now;
                         }
 		break;
                 case PRE_RELEASE:
-                        if (!pressed) {
+                        if (pressed) {
+                                button->state = PRESSED;
+                                button->tick  = now;
+                        } else {
                                 if (LUNA_LESS_THAN(LUNA_TICK_TYPE, BUTTON_DEBOUNCE_TICK, now - button->tick)) {
 					button->state = RELEASE;
                                         button->tick  = now;
@@ -161,9 +164,6 @@ void luna_button_poll(struct button *button)
 						button->callback.release(button);
 					}
                                 }
-                        } else {
-                                button->state = PRESSED;
-                                button->tick  = now;
                         }
 		break;
                 default:
