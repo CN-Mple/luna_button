@@ -11,30 +11,28 @@
 
 #include <windows.h>
 
-struct button button;
+static struct button button;
 
-void button_pressed(void *arg)
+static struct core_timer *timer_head = NULL;
+
+void button_pressed(struct button *button)
 {
-	struct button *button = (struct button *)arg;
-	printf("pressed.\n");
+	printf("[%08u] BUTTON [PRESSED]\n", LUNA_GET_TICK());
 }
 
-void button_release(void *arg)
+void button_release(struct button *button)
 {
-	struct button *button = (struct button *)arg;
-	printf("release.\n");
+	printf("[%08u] BUTTON [RELEASED]\n", LUNA_GET_TICK());
 }
 
-void button_clicks(void *arg)
+void button_click(struct button *button)
 {
-	struct button *button = (struct button *)arg;
-	printf("clicks %d.\n", button->repeat);
+	printf("[%08u] BUTTON [CLICK]    count: %u\n", LUNA_GET_TICK(), button->repeat);
 }
 
-void button_long_pressed(void *arg)
+void button_long_pressed(struct button *button)
 {
-	struct button *button = (struct button *)arg;
-	printf("long_pressed.\n");
+	printf("[%08u] BUTTON [LONG_PRESSED]  timeout: %dms\n", LUNA_GET_TICK(), BUTTON_LONG_TICK);
 }
 
 
@@ -43,12 +41,10 @@ bool button_is_pressed(void)
 	return (GetAsyncKeyState('A') & 0x8000) != 0;
 }
 
-
-static struct core_timer *timer_head = NULL;
-
 void timer_call_callback(void *arg)
 {
-        luna_button_process(&button);
+	struct button *button = (struct button *)arg;
+        luna_button_poll(button);
 }
 
 int main(void)
@@ -60,27 +56,25 @@ int main(void)
 			5,
 			TIMER_PERIODIC,
 			timer_call_callback,
-			NULL);
-        luna_timer_start(&timer);
+			&button);
 
-
-
-	struct button_handle_ops handle = {
-		button_pressed,
-		button_release,
-		button_clicks,
-		button_long_pressed
+	struct button_config_ops callback = {
+		.click        = button_click,
+		.pressed      = button_pressed,
+		.release      = button_release,
+		.long_pressed = button_long_pressed
 	};
 	luna_button_init(&button, button_is_pressed);
-	luna_button_register(&button, handle);
+	luna_button_bind(&button, &callback);
+
+        luna_timer_start(&timer);
         while (1)
         {
                 luna_timer_run(&timer_head);
-                usleep(1000);
+                Sleep(1);
         }
 
         return 0;
 }
-
 
 ```
