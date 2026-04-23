@@ -6,6 +6,11 @@
 #include <stdint.h>
 #include <stdbool.h>
 
+#ifndef LUNA_ASSERT
+#include <assert.h>
+#define LUNA_ASSERT                     assert
+#endif
+
 #ifndef LUNA_TICK_TYPE
 #define LUNA_TICK_TYPE			uint32_t
 #endif
@@ -78,6 +83,7 @@ void luna_button_poll(struct button *button);
 
 void luna_button_init(struct button *button, bool (*is_pressed)(void))
 {
+        LUNA_ASSERT(button);
 	if (!button) {
 		return;
 	}
@@ -89,11 +95,14 @@ void luna_button_init(struct button *button, bool (*is_pressed)(void))
 
 void luna_button_bind(struct button *button, const struct button_config_ops *callback)
 {
+        LUNA_ASSERT(button);
+        LUNA_ASSERT(callback);
 	button->callback = *callback;
 }
 
 void luna_button_poll(struct button *button)
 {
+        LUNA_ASSERT(button);
         if (!button->ops.is_pressed) {
 		return;
 	}
