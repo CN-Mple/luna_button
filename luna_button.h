@@ -33,11 +33,11 @@ static inline LUNA_TICK_TYPE LUNA_GET_TICK(void)
 #endif
 
 #ifndef BUTTON_LONG_TICK
-#define BUTTON_LONG_TICK		(3000)
+#define BUTTON_LONG_TICK		(2000)
 #endif
 
 #ifndef BUTTON_CLICK_INTERVAL
-#define BUTTON_CLICK_INTERVAL		(500)
+#define BUTTON_CLICK_INTERVAL		(200)
 #endif
 
 typedef enum {
@@ -45,31 +45,32 @@ typedef enum {
         PRE_PRESSED,
         PRESSED,
         PRE_RELEASE,
-        LONG_PRESSED,
 } button_state_t;
+
+struct button;
 
 struct button_ops {
         bool (*is_pressed)(void);
 };
 
-struct button_handle_ops {
-        bool (*pressed)(void *arg);
-        bool (*release)(void *arg);
-        bool (*clicks)(void *arg);
-        bool (*long_pressed)(void *arg);
+struct button_config_ops {
+        void (*click)(struct button *button);
+        void (*pressed)(struct button *button);
+        void (*release)(struct button *button);
+        void (*long_pressed)(struct button *button);
 };
 
 struct button {
         button_state_t           state;
         struct button_ops        ops;
-	struct button_handle_ops handle;
+	struct button_config_ops callback;
         LUNA_TICK_TYPE           tick;
 	uint32_t                 repeat;
 };
 
 void luna_button_init(struct button *button, bool (*is_pressed)(void));
-void luna_button_register(struct button *button, struct button_handle_ops handle);
-void luna_button_process(struct button *button);
+void luna_button_bind(struct button *button, const struct button_config_ops *callback);
+void luna_button_poll(struct button *button);
 
 #endif
 
@@ -86,12 +87,12 @@ void luna_button_init(struct button *button, bool (*is_pressed)(void))
 	button->ops.is_pressed = is_pressed;
 }
 
-void luna_button_register(struct button *button, struct button_handle_ops handle)
+void luna_button_bind(struct button *button, const struct button_config_ops *callback)
 {
-	button->handle = handle;
+	button->callback = *callback;
 }
 
-void luna_button_process(struct button *button)
+void luna_button_poll(struct button *button)
 {
         if (!button->ops.is_pressed) {
 		return;
@@ -104,8 +105,8 @@ void luna_button_process(struct button *button)
                 case RELEASE:
 			if (button->repeat > 0) {
 				if (LUNA_LESS_THAN(LUNA_TICK_TYPE, BUTTON_CLICK_INTERVAL, now - button->tick)) {
-					if (button->handle.clicks) {
-						button->handle.clicks(button);
+					if (button->callback.click) {
+						button->callback.click(button);
 					}
 					button->repeat = 0;
 				}
@@ -121,8 +122,8 @@ void luna_button_process(struct button *button)
                                         button->state = PRESSED;
                                         button->tick  = now;
 					++button->repeat;
-					if (button->handle.pressed) {
-						button->handle.pressed(button);
+					if (button->callback.pressed) {
+						button->callback.pressed(button);
 					}
                                 }
                         } else {
@@ -134,11 +135,11 @@ void luna_button_process(struct button *button)
                                 button->state = PRE_RELEASE;
                                 button->tick = now;
                         } else {
-                                if (now - button->tick >= BUTTON_LONG_TICK) {
-                                        button->state = LONG_PRESSED;
-					if (button->handle.long_pressed) {
-						button->handle.long_pressed(button);
-					}
+                                if (LUNA_LESS_THAN(LUNA_TICK_TYPE, BUTTON_LONG_TICK, now - button->tick)) {
+					button->tick  = now;
+                                        if (button->callback.long_pressed) {
+                                                button->callback.long_pressed(button);
+                                        }
                                 }
                         }
 		break;
@@ -146,18 +147,13 @@ void luna_button_process(struct button *button)
                         if (!pressed) {
                                 if (LUNA_LESS_THAN(LUNA_TICK_TYPE, BUTTON_DEBOUNCE_TICK, now - button->tick)) {
 					button->state = RELEASE;
-					button->tick  = now;
-					if (button->handle.release) {
-						button->handle.release(button);
+                                        button->tick  = now;
+					if (button->callback.release) {
+						button->callback.release(button);
 					}
                                 }
                         } else {
                                 button->state = PRESSED;
-                        }
-		break;
-                case LONG_PRESSED:
-                        if (!pressed) {
-                                button->state = PRE_RELEASE;
                                 button->tick  = now;
                         }
 		break;
