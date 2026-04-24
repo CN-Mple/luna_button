@@ -68,10 +68,10 @@ struct button_interface {
 };
 
 struct button_callback {
-        void (*mult_click)(void *user_arg, uint32_t count);
-        void (*press)(void *user_arg);
-        void (*release)(void *user_arg);
-        void (*long_press)(void *user_arg);
+        void (*mult_click)(void *arg, uint32_t count);
+        void (*press)(void *arg);
+        void (*release)(void *arg);
+        void (*long_press)(void *arg);
 };
 
 struct button_config {
