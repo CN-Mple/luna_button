@@ -63,20 +63,16 @@ int main(void)
 			&button);
 
 	const struct button_callback callback = {
-		.mult_click   = button_mult_click,
+		.mult_click = button_mult_click,
 		.press      = button_press,
-		.release      = button_release,
+		.release    = button_release,
 		.long_press = button_long_press
 	};
-	luna_button_init(&button, button_is_press);
+	const struct button_config config = BUTTON_DEFAULT_CONFIG();
+
+	luna_button_init(&button, button_is_press, &config);
 	luna_button_bind(&button, &callback, 0);
-
-	luna_button_enable_long_press(&button, true);
-
-	luna_button_set_debounce_interval         (&button, BUTTON_DEBOUNCE_INTERVAL);
-	luna_button_set_long_press_interval       (&button, BUTTON_LONG_PRESSED_INTERVAL);
-	luna_button_set_long_press_repeat_interval(&button, BUTTON_LONG_PRESSED_REPEAT_INTERVAL);
-	luna_button_set_click_interval            (&button, BUTTON_CLICK_INTERVAL);
+	luna_button_ctrl(&button, BUTTON_CTRL_LONG_PRESS, true);
 
         luna_timer_start(&timer);
         while (1)
