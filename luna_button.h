@@ -199,7 +199,7 @@ void luna_button_poll(struct button *button)
                                         } else {
                                                 if (LUNA_LESS_THAN(LUNA_TICK_TYPE, button->config.long_repeat_interval, now - button->tick)) {
                                                         button->tick = now;
-                                                        if (button->callback && button->callback->long_press) {
+                                                        if (button->callback->long_press) {
                                                                 button->callback->long_press(button->user_arg);
                                                         }
                                                 }
