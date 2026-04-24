@@ -56,6 +56,11 @@ typedef enum {
         BUTTON_PRE_RELEASE,
 } button_state_t;
 
+typedef enum {
+        BUTTON_CTRL_LONG_PRESS = 1 << 0,
+} button_ctrl_t;
+
+
 struct button;
 
 struct button_interface {
@@ -63,16 +68,16 @@ struct button_interface {
 };
 
 struct button_callback {
-        void (*mult_click)(void *arg, uint32_t count);
-        void (*press)(void *arg);
-        void (*release)(void *arg);
-        void (*long_press)(void *arg);
+        void (*mult_click)(void *user_arg, uint32_t count);
+        void (*press)(void *user_arg);
+        void (*release)(void *user_arg);
+        void (*long_press)(void *user_arg);
 };
 
 struct button_config {
         uint32_t debounce_interval;
         uint32_t long_press_interval;
-        uint32_t long_press_repeat_interval;
+        uint32_t long_repeat_interval;
         uint32_t multiply_click_interval;
 };
 
@@ -80,31 +85,41 @@ struct button {
         button_state_t                state;
         struct button_interface       interface;
 	const struct button_callback *callback;
-        void                         *arg;
+        void                         *user_arg;
         struct button_config          config;
         LUNA_TICK_TYPE                tick;
 
-        uint32_t                      long_press_en : 1;
-	uint32_t                      long_press    : 1;
-	uint32_t                      repeat        :30;
+        uint32_t                      long_press_enable : 1;
+	uint32_t                      is_long_pressed   : 1;
+	uint32_t                      multi_click_count :30;
 };
 
-void luna_button_init(struct button *button, bool (*is_press)(void));
-void luna_button_bind(struct button *button, const struct button_callback *callback, void *arg);
+void luna_button_init(struct button *button, bool (*is_press)(void), const struct button_config *config);
+void luna_button_bind(struct button *button, const struct button_callback *callback, void *user_arg);
+void luna_button_ctrl(struct button *button, button_ctrl_t ctrl, bool enable);
 void luna_button_poll(struct button *button);
-
-void luna_button_enable_long_press(struct button *button, bool enable);
-
-void luna_button_set_debounce_interval(struct button *button, uint32_t ms);
-void luna_button_set_long_press_interval(struct button *button, uint32_t ms);
-void luna_button_set_long_press_repeat_interval(struct button *button, uint32_t ms);
-void luna_button_set_click_interval(struct button *button, uint32_t ms);
 
 #endif
 
 #ifdef LUNA_BUTTON_IMPLEMENTATION
 
-void luna_button_init(struct button *button, bool (*is_press)(void))
+#define BUTTON_DEFAULT_CONFIG()                                                 \
+        (struct button_config){                                                 \
+                .debounce_interval       = BUTTON_DEBOUNCE_INTERVAL,            \
+                .long_press_interval     = BUTTON_LONG_PRESSED_INTERVAL,        \
+                .long_repeat_interval    = BUTTON_LONG_PRESSED_REPEAT_INTERVAL, \
+                .multiply_click_interval = BUTTON_CLICK_INTERVAL                \
+        }
+
+#define BUTTON_CUSTOM_CONFIG(debounce, long_press, long_repeat, multi_click)    \
+        (struct button_config){                                                 \
+                .debounce_interval       = debounce,                            \
+                .long_press_interval     = long_press,                          \
+                .long_repeat_interval    = long_repeat,                         \
+                .multiply_click_interval = multi_click                          \
+        }
+
+void luna_button_init(struct button *button, bool (*is_press)(void), const struct button_config *config)
 {
         LUNA_ASSERT(button);
 
@@ -113,24 +128,19 @@ void luna_button_init(struct button *button, bool (*is_press)(void))
 	button->interface.is_press = is_press;
         button->callback           = NULL;
 
-        button->long_press_en      = 0;
-        button->long_press         = 0;
-	button->repeat             = 0;
+        button->long_press_enable  = 0;
+        button->is_long_pressed    = 0;
+	button->multi_click_count  = 0;
 
-        button->config             = (struct button_config){
-                .debounce_interval          = BUTTON_DEBOUNCE_INTERVAL,
-                .long_press_interval        = BUTTON_LONG_PRESSED_INTERVAL,
-                .long_press_repeat_interval = BUTTON_LONG_PRESSED_REPEAT_INTERVAL,
-                .multiply_click_interval    = BUTTON_CLICK_INTERVAL
-        };
+        button->config             = *config;
 }
 
-void luna_button_bind(struct button *button, const struct button_callback *callback, void *arg)
+void luna_button_bind(struct button *button, const struct button_callback *callback, void *user_arg)
 {
         LUNA_ASSERT(button);
         LUNA_ASSERT(callback);
 	button->callback = callback;
-        button->arg      = arg;
+        button->user_arg      = user_arg;
 }
 
 void luna_button_poll(struct button *button)
@@ -145,18 +155,18 @@ void luna_button_poll(struct button *button)
 
         switch (button->state) {
                 case BUTTON_RELEASE:
-			if (button->repeat > 0) {
+			if (button->multi_click_count > 0) {
 				if (LUNA_LESS_THAN(LUNA_TICK_TYPE, button->config.multiply_click_interval, now - button->tick)) {
 					if (button->callback->mult_click) {
-						button->callback->mult_click(button->arg, button->repeat);
+						button->callback->mult_click(button->user_arg, button->multi_click_count);
 					}
-					button->repeat = 0;
+					button->multi_click_count = 0;
 				}
 			}
                         if (press) {
                                 button->state = BUTTON_PRE_PRESSED;
                                 button->tick  = now;
-                                button->long_press = 0;
+                                button->is_long_pressed = 0;
                         }
 		break;
                 case BUTTON_PRE_PRESSED:
@@ -164,9 +174,9 @@ void luna_button_poll(struct button *button)
                                 if (LUNA_LESS_THAN(LUNA_TICK_TYPE, button->config.debounce_interval, now - button->tick)) {
                                         button->state = BUTTON_PRESSED;
                                         button->tick  = now;
-					++button->repeat;
+					++button->multi_click_count;
 					if (button->callback->press) {
-						button->callback->press(button->arg);
+						button->callback->press(button->user_arg);
 					}
                                 }
                         } else {
@@ -175,20 +185,20 @@ void luna_button_poll(struct button *button)
 		break;
                 case BUTTON_PRESSED:
                         if (press) {
-                                if (button->long_press_en) {
-                                        if (!button->long_press) {
+                                if (button->long_press_enable) {
+                                        if (!button->is_long_pressed) {
                                                 if (LUNA_LESS_THAN(LUNA_TICK_TYPE, button->config.long_press_interval, now - button->tick)) {
                                                         button->tick  = now;
                                                         if (button->callback->long_press) {
-                                                                button->callback->long_press(button->arg);
+                                                                button->callback->long_press(button->user_arg);
                                                         }
-                                                        button->long_press = 1;
+                                                        button->is_long_pressed = 1;
                                                 }
                                         } else {
-                                                if (LUNA_LESS_THAN(LUNA_TICK_TYPE, button->config.long_press_repeat_interval, now - button->tick)) {
+                                                if (LUNA_LESS_THAN(LUNA_TICK_TYPE, button->config.long_repeat_interval, now - button->tick)) {
                                                         button->tick = now;
                                                         if (button->callback && button->callback->long_press) {
-                                                                button->callback->long_press(button->arg);
+                                                                button->callback->long_press(button->user_arg);
                                                         }
                                                 }
                                         }
@@ -207,48 +217,34 @@ void luna_button_poll(struct button *button)
 					button->state = BUTTON_RELEASE;
                                         button->tick  = now;
 					if (button->callback->release) {
-						button->callback->release(button->arg);
+						button->callback->release(button->user_arg);
 					}
                                 }
                         }
 		break;
                 default:
-                        button->state      = BUTTON_RELEASE;
-			button->tick       = now;
-			button->repeat     = 0;
-                        button->long_press = 0;
+                        button->state             = BUTTON_RELEASE;
+			button->tick              = now;
+			button->multi_click_count = 0;
+                        button->is_long_pressed   = 0;
 		break;
         }
 }
 
-void luna_button_enable_long_press(struct button *button, bool enable)
+void luna_button_ctrl(struct button *button, button_ctrl_t ctrl, bool enable)
 {
         LUNA_ASSERT(button);
-        button->long_press_en = enable;
-}
-
-void luna_button_set_debounce_interval(struct button *button, uint32_t ms)
-{
-        LUNA_ASSERT(button);
-        button->config.debounce_interval = ms;
-}
-
-void luna_button_set_long_press_interval(struct button *button, uint32_t ms)
-{
-        LUNA_ASSERT(button);
-        button->config.long_press_interval = ms;
-}
-
-void luna_button_set_long_press_repeat_interval(struct button *button, uint32_t ms)
-{
-        LUNA_ASSERT(button);
-        button->config.long_press_repeat_interval = ms;
-}
-
-void luna_button_set_click_interval(struct button *button, uint32_t ms)
-{
-        LUNA_ASSERT(button);
-        button->config.multiply_click_interval = ms;
+        switch (ctrl) {
+        case BUTTON_CTRL_LONG_PRESS:
+                button->long_press_enable = enable ? 1 : 0;
+                if (!enable) {
+                        button->is_long_pressed = 0;
+                }
+        break;
+        default:
+                LUNA_ASSERT(0);
+        break;
+        }
 }
 
 #endif
