@@ -139,6 +139,7 @@ void luna_button_bind(struct button *button, const struct button_callback *callb
 {
         LUNA_ASSERT(button);
         LUNA_ASSERT(callback);
+	
 	button->callback = callback;
         button->user_arg      = user_arg;
 }
@@ -146,6 +147,7 @@ void luna_button_bind(struct button *button, const struct button_callback *callb
 void luna_button_poll(struct button *button)
 {
         LUNA_ASSERT(button);
+	
         if (!button->interface.is_press || !button->callback) {
 		return;
 	}
@@ -234,6 +236,7 @@ void luna_button_poll(struct button *button)
 void luna_button_ctrl(struct button *button, button_ctrl_t ctrl, bool enable)
 {
         LUNA_ASSERT(button);
+	
         switch (ctrl) {
         case BUTTON_CTRL_LONG_PRESS:
                 button->long_press_enable = enable ? 1 : 0;
